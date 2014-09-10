@@ -1,0 +1,139 @@
+*taillight.txt*	文の終了文字の付け忘れを、行末をハイライトさせることで防ぐ。
+
+Author  : LeafCage <leafcage+vim @ gmail.com>
+License : MIT license  {{{
+    Permission is hereby granted, free of charge, to any person obtaining
+    a copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to
+    the following conditions:
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+}}}
+
+==============================================================================
+目次						*taillight-contents*
+
+概要				|taillight-introduction|
+使い方				|taillight-usage|
+インターフェイス		|taillight-interface|
+  変数				  |taillight-variables|
+  コマンド			  |taillight-commands|
+
+
+==============================================================================
+概要						*taillight-introduction*
+
+*taillight* は、文末に何も付けなくてもよい言語（Vim script や Python 等）の編
+集に慣れた人が、文末にたとえば ; 等を付けないと文が終了しない言語（C言語など）
+を編集しているときに、; の付け忘れを防ぐためのプラグインです。
+; のついていない行の行末はハイライトされます。
+
+最新版:
+https://github.com/LeafCage/taillight.vim
+
+
+==============================================================================
+使い方						*taillight-usage*
+
+文末に ; を付けなければいけない言語を編集する場合は、当該バッファを開いて、
+|TailLight|コマンドの引数に ; を与えて実行してください。 >
+	TailLight ;
+これで ; のついていない行の末尾がハイライトされるようになります。
+引数は空白区切りで複数指定可能です。コメントの開始文字 /* と、終了文字 */ を許
+可する場合は次のようにコマンドを実行します。 >
+	TailLight ; /* */
+
+
+==============================================================================
+インターフェイス				*taillight-interface*
+
+------------------------------------------------------------------------------
+変数						*taillight-variables*
+
+g:taillight_regulars				*g:taillight_regulars*
+	既定値: ["{", "}"]
+	このリストに含まれた文字列は、常に|TailLight|コマンドの引数に含まれて
+	いるかのように振る舞います。
+
+
+------------------------------------------------------------------------------
+コマンド					*taillight-commands*
+
+:TailLight [{str} ...]				*:TailLight*
+	引数を指定せずに実行した場合はハイライトを解除します。
+	引数を指定した場合、行末にその文字がないとき、行末はハイライトされるよ
+	うになります。
+	引数にスペースを含める場合はバックスラッシュを前置きして "\ " のように
+	、バックスラッシュを含める場合は "\\" のように指定してください。
+
+	ハイライトにはハイライトグループ |TailLight| が使われます。 >
+	  highlight TailLight   guibg=Magenta ctermbg=Magenta term=reverse
+<	のようにしてハイライトをカスタムすることができます。
+
+
+==============================================================================
+開発備忘録（読まなくていいです）
+
+今回の開発で苦労したところ。matchadd()を使うプラグインだけに、主にマッチ絡み。
+
+その1。マッチのパターン作り。
+どうしても行末マッチをさせたかった。最後の文字なら :syntax match コマンドでハ
+イライトさせられるのだけれど、最後の文字を超えたところの改行の部分をハイライト
+させるには|matchadd()|を使うしかなかった。個人的には|matchadd()|は処理が重そう
+だし、バッファごとの管理ではなくウィンドウごとの管理なので処理がややこしくなり
+そうなので使うのを避けたかった。だがこれ以外に方法がなさそうなので仕方がない。
+
+そしてマッチをはじめは [^] （否定コレクション）を使って、たとえば ; なら
+[^;]\zs$ みたいなパターンになるような文字列を生成するようにしていた。
+しかしこれの問題点は2文字以上のパターン（コメント開始文字の /* など）に対応さ
+せるのが激しく難しい。否定だから複数のパターンは|\&|で繋ぐことになるのだが、
+\([^;]\&[^/][^*]\)$ みたいなパターンにだと何にもマッチしない。
+|\@<!|の存在に気づくまではマッチを組み替えて実験を繰り返して苦労した。
+|\@<!|は肯定でマッチをくめるからパターンを \| で繋ぐことが出来て良い。パターン
+は \| で繋げられた方が自由度が高くて良い。まぁ、|\@<!|は処理が重そうなのが不安
+だが。（事実、|TailLight|を利用しているときにステータスラインや検索マッチが正
+しく動いていなかったりする）
+重さや表示が問題になってきたら改善するつもり。
+
+その2。autocmdからCursorMovedを取り除く。
+はじめは autocmd に |CursorMoved|を利用していた。|CursorMoved|と|WinEnter|時に
+s:reload() するようにしていた。個人的には|CursorMoved|は使いたくなかった。マッ
+チが更新されない限りはカーソルを動かしたときに走る処理の負荷は軽微なものだが、
+それでもこんなことのためにVimを重くしてしまうのが許せなかった。
+とはいうものの、|CursorMoved|を使わないのは難しいこともわかっていた。何が問題
+なのかというと、バッファを切り替えるときと、別のウィンドウに移動するときだ。バ
+ッファが切り替えられるとき|matchadd()|で設定したハイライトを|matchdelete()|で
+削除する必要がある。|matchadd()|のハイライトはバッファローカルではなくウィンド
+ウローカルだからだ。ハイライトをクリアした上で、新しいバッファで再度そのバッフ
+ァにふさわしいようにハイライトを設定し直す必要がある。
+バッファの切り替えだけなら|BufLeave|と|BufEnter|で問題はないのだが、問題となる
+のは違うバッファを開いている別のウィンドウに移動したときだ。このときにも
+|BufLeave|が発生してハイライトがクリアされてしまう。バッファが見えているのにハ
+イライトが削除されるのは不自然であるし、その後そのバッファに戻ってきても、ハイ
+ライトは削除されたままだ。|WinEnter|というのは（おそらく）ウィンドウに初めて入
+るときにだけ発生するのであって、すでに入ったことのあるウィンドウに戻ってきたと
+きには発生しないのだ。|WinEnter|で設定できるチャンスははじめの一回だけで、何度
+も設定し直す内容は|BufLeave||BufEnter|に任せるしかないのである（たぶん）。
+ただし、|WinEnter|の前には|WinLeave|が発生し、その前に|BufLeave|が発生するとい
+うことなので、|BufLeave|時にクリアしたハイライトを|WinLeave|で再び復活させてか
+らウィンドウを抜けるという実装にした。
+
+その他
+文終了文字（;）だけをハイライトする方が実装が簡単なのに、なぜ文終了文字以外の
+方をハイライトするようにしたのか。
+文終了文字の方をハイライトしていても文終了文字の付け忘れは防げなかったから。
+
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:noet:fen:
