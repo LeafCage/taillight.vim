@@ -2,20 +2,22 @@ if expand('<sfile>:p')!=#expand('%:p') && exists('g:loaded_taillight')| finish| 
 let s:save_cpo = &cpo| set cpo&vim
 scriptencoding utf-8
 "=============================================================================
-let g:taillight_regulars = get(g:, 'taillight_regulars', ['{', '}'])
-command! -nargs=?   TailLight    call s:change_strs(<q-args>)
+let g:taillight_regulars = get(g:, 'taillight_regulars', ['\^', '{', '}'])
+command! -nargs=? -bang   TailLight    call s:turn_on(<q-args>, <bang>0)
 
 aug TailLight
   autocmd!
   autocmd ColorScheme *   call s:define_hl()
-  autocmd BufEnter,WinEnter,WinLeave *      call s:reload()
-  autocmd BufLeave *   call s:clear_hl()
+  autocmd BufLeave *    call s:clear_hl()
+  autocmd BufEnter,WinEnter,WinLeave *    call s:reload()
 aug END
 
 "=============================================================================
-let s:enc = {'\ ': ' '}
-function! s:change_strs(arg) "{{{
-  let b:taillight_strs = map(split(a:arg,  '\%(\\\@<!\s\)\+'), 'substitute(v:val, ''\\.'', ''\=get(s:enc, submatch(0), submatch(0))'', "g")')
+function! s:turn_on(arg, bang) "{{{
+  let b:taillight_strs = map(split(a:arg,  '\%(\\\@<!\s\)\+'), 'substitute(v:val, ''\\ '', " ", "g")')
+  if b:taillight_strs!=[] && !a:bang
+    call extend(b:taillight_strs, g:taillight_regulars, 0)
+  end
   call s:reload()
 endfunction
 "}}}
@@ -29,15 +31,15 @@ function! s:clear_hl() "{{{
   end
   call matchdelete(w:taillight_matchid)
   unlet w:taillight_matchid
-  let w:taillight_crr_endstrs = []
+  let w:taillight_crrstrs = []
 endfunction
 "}}}
 function! s:reload() "{{{
-  if get(w:, 'taillight_crr_endstrs', []) ==# get(b:, 'taillight_strs', [])
+  if get(w:, 'taillight_crrstrs', []) ==# get(b:, 'taillight_strs', [])
     return
   end
   let b:taillight_strs = get(b:, 'taillight_strs', [])
-  let w:taillight_crr_endstrs = b:taillight_strs
+  let w:taillight_crrstrs = b:taillight_strs
   if exists('w:taillight_matchid')
     call matchdelete(w:taillight_matchid)
   end
@@ -52,7 +54,7 @@ endfunction
 "=============================================================================
 "Misc:
 function! s:_gen_pat() "{{{
-  return '\V\%('. join(b:taillight_strs + g:taillight_regulars, '\|'). '\|\^\)\@<!\$'
+  return '\V\%('. join(b:taillight_strs, '\V\|'). '\V\)\@<!\$'
 endfunction
 "}}}
 
