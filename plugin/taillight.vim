@@ -2,7 +2,8 @@ if expand('<sfile>:p')!=#expand('%:p') && exists('g:loaded_taillight')| finish| 
 let s:save_cpo = &cpo| set cpo&vim
 scriptencoding utf-8
 "=============================================================================
-let g:taillight_regulars = get(g:, 'taillight_regulars', ['\^', '{', '}'])
+let g:taillight_regulars = get(g:, 'taillight_regulars', ['\m^', '{', '\m^\s*}'])
+let g:taillight_magic_pat = get(g:, 'taillight_magic_pat', '\m')
 command! -nargs=? -bang   TailLight    call s:turn_on(<q-args>, <bang>0)
 
 aug TailLight
@@ -53,8 +54,11 @@ endfunction
 
 "=============================================================================
 "Misc:
+let s:magic_seppats = {'\v': '\v|', '\m': '\m\|', '\M': '\M\|', '\V': '\V\|'}
 function! s:_gen_pat() "{{{
-  return '\V\%('. join(b:taillight_strs, '\V\|'). '\V\)\@<!\$'
+  let magic_pat = has_key(s:magic_seppats, g:taillight_magic_pat) ? g:taillight_magic_pat : '\m'
+  let magic_seppat = s:magic_seppats[magic_pat]
+  return '\%('.magic_pat. join(b:taillight_strs,  magic_seppat). '\m\)\@<!$'
 endfunction
 "}}}
 
