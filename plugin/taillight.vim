@@ -7,23 +7,19 @@ let g:taillight_magic_pat = get(g:, 'taillight_magic_pat', '\m')
 command! -nargs=? -bang   TailLight    call s:turn_on(<q-args>, <bang>0)
 
 aug TailLight
-  autocmd!
-  autocmd ColorScheme *   call s:define_hl()
-  autocmd BufLeave *    call s:clear_hl()
-  autocmd BufEnter,WinEnter,WinLeave *    call s:reload()
+  au!
+  au ColorScheme * :hi default TailLight   guibg=Magenta ctermbg=Magenta term=reverse
+  au BufLeave *    call s:clear_hl()
+  au BufEnter,WinEnter,WinLeave *    call s:reload()
 aug END
+hi default TailLight   guibg=Magenta ctermbg=Magenta term=reverse
 
-"=============================================================================
 function! s:turn_on(arg, bang) "{{{
   let b:taillight_strs = map(split(a:arg,  '\%(\\\@<!\s\)\+'), 'substitute(v:val, ''\\ '', " ", "g")')
   if b:taillight_strs!=[] && !a:bang
     call extend(b:taillight_strs, g:taillight_regulars, 0)
   end
   call s:reload()
-endfunction
-"}}}
-function! s:define_hl() "{{{
-  highlight default TailLight   guibg=Magenta ctermbg=Magenta term=reverse
 endfunction
 "}}}
 function! s:clear_hl() "{{{
